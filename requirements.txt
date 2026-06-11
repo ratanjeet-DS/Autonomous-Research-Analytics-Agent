@@ -1,0 +1,49 @@
+# Core orchestration
+crewai>=0.86.0
+langgraph>=0.2.50
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-ollama>=0.2.0
+
+# Web research
+firecrawl-py>=1.6.0
+crawl4ai>=0.4.0
+beautifulsoup4>=4.12.0
+httpx>=0.27.0
+
+# Data / ML
+pandas>=2.2.0
+numpy>=1.26.0
+scikit-learn>=1.5.0
+xgboost>=2.1.0
+statsmodels>=0.14.0
+scipy>=1.13.0
+prophet>=1.1.5
+
+# Documents
+openpyxl>=3.1.0
+pdfplumber>=0.11.0
+pypdf>=5.0.0
+python-docx>=1.1.0
+
+# Visualization
+matplotlib>=3.9.0
+plotly>=5.24.0
+seaborn>=0.13.0
+kaleido>=0.2.1
+
+# Reporting
+jinja2>=3.1.0
+reportlab>=4.2.0
+markdown>=3.7
+
+# RAG / storage
+chromadb>=0.5.0
+faiss-cpu>=1.8.0
+sentence-transformers>=3.0.0
+
+# App / config
+streamlit>=1.39.0
+pydantic>=2.9.0
+pydantic-settings>=2.5.0
+python-dotenv>=1.0.0

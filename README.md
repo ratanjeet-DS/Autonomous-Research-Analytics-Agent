@@ -1,88 +1,113 @@
-# Trading Intelligence Multi-Agent Platform
+# Autonomous Research & Analytics Agent
 
-A professional multi-agent trading research system. CrewAI agents crawl TradingQnA and public financial sources, store everything in a local vector database, and generate dashboard-ready research reports — using only free, open-source components.
+A production-ready, multi-agent research and business-intelligence platform that ingests Excel, CSV, PDF, DOCX, TXT files and websites, then automatically extracts, cleans, analyzes, researches, visualizes and reports — orchestrated by **LangGraph**, reasoned over by **CrewAI** agents, powered by **local Ollama LLMs**.
 
-## Stack
+## Architecture
 
-| Layer | Tool | Notes |
+LangGraph workflow with conditional routing across nine CrewAI-backed agents. Deterministic work (parsing, statistics, ML, charting) runs in plain Python for reliability; LLM agents reason over the computed results.
+
+    User Input
+        ↓
+    1. Intake Agent          — type detection, validation, routing plan
+        ↓
+    2. Data Extraction Agent — Excel (sheets/formulas), PDF/DOCX (text/tables), URLs (Firecrawl → Crawl4AI → httpx fallback)
+        ↓
+    3. Data Quality Agent    — missing values, duplicates, IQR anomalies, format checks, quality score
+        ↓  (conditional: URL/mixed input → research; tabular/document-only → skip ahead)
+    4. Research Agent        — industry context, benchmarks, competitors, trends; feeds ChromaDB
+        ↓
+    5. Business Analyst      — KPIs (growth/decline/variance), trends, seasonality, root-cause drivers
+        ↓
+    6. Data Scientist        — correlation, hypothesis tests (t-test/ANOVA), OLS regression, AutoML
+                               (RandomForest/XGBoost/LogReg · LinReg/RF/XGB regressors · KMeans/DBSCAN · ARIMA/Prophet)
+        ↓
+    7. Visualization Agent   — auto bar/line/pie/scatter/heatmap/distribution/forecast charts → PNG, SVG, HTML
+        ↓
+    8. Insight Agent         — findings, hidden patterns, risks, revenue/cost/efficiency opportunities,
+                               short- & long-term recommendations, confidence score
+        ↓
+    9. Report Generator      — Jinja2 → Markdown, HTML, PDF (ReportLab), DOCX
+        ↓
+    Final Output (Streamlit dashboard + downloadable reports)
+
+## Quick start (local)
+
+Requirements: Python 3.12 and a running [Ollama](https://ollama.com) instance.
+
+    # 1. Install
+    python -m venv .venv && source .venv/bin/activate
+    pip install -r requirements.txt
+    crawl4ai-setup                      # installs the headless browser for Crawl4AI
+
+    # 2. Configure
+    cp .env.example .env                # set FIRECRAWL_API_KEY if you have one (optional)
+
+    # 3. Pull models
+    ollama pull qwen3 && ollama pull llama3   # plus mistral / deepseek-r1 if desired
+
+    # 4. Run the UI
+    streamlit run app/streamlit_app.py
+
+    # …or the CLI
+    python main.py --files data/uploads/sales.xlsx --query "Analyze business performance"
+    python main.py --urls https://example.com/market-report --files report.pdf --model llama3
+    python main.py --ask "What were the key risks in the uploaded report?"   # RAG follow-up
+
+## Quick start (Docker)
+
+    docker compose up -d --build
+    ./scripts/pull_models.sh            # pull Ollama models into the container
+    open http://localhost:8501
+
+## Supported user queries
+
+- "Analyze this Excel file."
+- "Compare uploaded report with industry trends."  (upload + URLs → mixed routing)
+- "Generate executive summary." / "Identify business risks."
+- "Forecast next quarter performance."  (auto ARIMA/Prophet)
+- "Create presentation-ready charts." / "Compare competitors."
+- "Recommend strategic actions." / "Explain findings in simple language."  (RAG chat tab)
+
+## Output of every run
+
+Executive summary · key metrics · charts (PNG/SVG/HTML) · research findings · statistical findings · ML insights · risks · opportunities · recommendations · confidence score · downloadable report (MD/HTML/PDF/DOCX).
+
+## Configuration
+
+All settings live in `.env` (see `.env.example`):
+
+| Variable | Default | Purpose |
 |---|---|---|
-| Orchestration | CrewAI | 4 specialist agents + supervisor |
-| LLM | Ollama (Llama 3.1 / Qwen / Mistral / DeepSeek…) | runs locally, no API key |
-| Crawling | Discourse JSON API + requests/BS4 | TradingQnA runs on Discourse, so its public `/search.json`, `/latest.json`, `/t/{id}.json` endpoints are used directly — free and structured. Optional self-hosted Firecrawl supported for other pages. |
-| Vector DB | ChromaDB (persistent) + sentence-transformers | local embeddings |
-| Frontend | Streamlit | theme color changes with detected sentiment |
-
-## Agents
-
-1. **TradingQnA Query Resolution Specialist** — answers trading questions from community/expert/Zerodha-staff discussions, with thread URLs.
-2. **TradingQnA Market Monitor** — trending topics, F&O/platform/regulatory updates, community sentiment (Bullish/Neutral/Bearish).
-3. **Equity Research Analyst** — fundamentals, margins, cash flow, debt, valuation table, recommendation.
-4. **IPO Research Specialist** — business model, unit economics, use of proceeds, TAM, risks, verdict.
-5. **Supervisor (Manager Agent)** — routes requests, deduplicates, ranks by relevance, enforces citations and final markdown structure.
-
-## Setup
-
-```bash
-# 1. Install Ollama and pull a model
-curl -fsSL https://ollama.com/install.sh | sh
-ollama pull llama3.1          # or qwen2.5 / mistral / deepseek-r1
-
-# 2. Python environment
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-# 3. Configure
-cp .env.example .env          # defaults work out of the box
-
-# 4. Run
-streamlit run app.py
-```
-
-## How it works (RAG workflow)
-
-1. Tools crawl TradingQnA (Discourse JSON) and public pages (filings, IPO docs, news).
-2. Documents are cleaned, chunked (~1000 chars, 150 overlap), and **upserted into ChromaDB** with content-hash IDs (idempotent re-crawls).
-3. Agents always query the **Knowledge Base tool first** to retrieve historical context, then crawl fresh data.
-4. Specialist output passes through the **supervisor** for deduplication, ranking, and citation enforcement.
-5. Streamlit parses the report's sentiment (`Bullish/Bearish/Neutral`) and re-themes the dashboard: green `#16a34a` / red `#dc2626` / amber `#f59e0b`.
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Local LLM endpoint |
+| `DEFAULT_MODEL` | `qwen3` | Any of llama3 / qwen3 / mistral / deepseek-r1 (switchable in the UI) |
+| `FIRECRAWL_API_KEY` | _empty_ | Enables hosted Firecrawl; otherwise Crawl4AI/httpx are used |
+| `CHROMA_PERSIST_DIR` | `./data/chroma` | RAG vector store |
+| `UPLOAD_DIR` / `OUTPUT_DIR` | `./data/...` | File locations |
 
 ## Project layout
 
-```
-trading-intel/
-├── app.py                       # Streamlit dashboard (dynamic theming)
-├── requirements.txt
-├── .env.example
-├── config/settings.py           # all knobs in one place
-└── src/
-    ├── crawler.py               # TradingQnA Discourse client + generic fetcher
-    ├── vectorstore.py           # ChromaDB ingest/retrieve
-    ├── tools/research_tools.py  # CrewAI tools (crawl + auto-ingest + KB search)
-    └── agents/
-        ├── prompts.py           # report templates from the spec
-        └── crew.py              # agents, tasks, routing, sentiment extraction
-```
+    config/settings.py        # pydantic-settings configuration
+    src/llm/ollama_client.py  # model factory + fallback
+    src/agents/               # CrewAI agents (intake/research/analyst/scientist/insight/report)
+    src/workflow/             # LangGraph state + graph with conditional routing
+    src/ingestion/            # file loaders + Firecrawl/Crawl4AI web scraping
+    src/quality/              # data-quality scoring + auto-cleaning
+    src/analytics/            # KPIs, statistics, AutoML, forecasting
+    src/viz/                  # auto-chart engine (matplotlib/seaborn/plotly)
+    src/rag/                  # ChromaDB chunking, semantic search, RAG Q&A
+    src/insights/             # insight + confidence-score generation
+    src/reporting/            # Jinja2 → MD/HTML/PDF/DOCX
+    app/streamlit_app.py      # dashboard UI with RAG chat
+    main.py                   # CLI
+    tests/                    # pytest smoke tests (no LLM needed)
 
-## Using it programmatically
+## Testing
 
-```python
-from src.agents.crew import run_query, run_equity, run_ipo, run_monitor
+    pip install pytest
+    pytest tests/ -v          # deterministic components run without Ollama
 
-print(run_query("How does physical settlement work for ITM options?"))
-print(run_equity("TATAMOTORS"))
-print(run_ipo("Swiggy"))
-print(run_monitor("F&O margin rules"))
-```
+## Notes & graceful degradation
 
-## Notes & responsible use
-
-- Crawl politely: limits are configurable in `.env` (`MAX_THREADS_PER_QUERY`, `MAX_POSTS_PER_THREAD`); respect TradingQnA's terms of service.
-- Open-source LLMs can still make numerical mistakes — prompts force `"Data Not Available"` for unverified figures, but **verify financial numbers against primary sources** before acting.
-- All output is research/education, **not investment advice**.
-
-## Common tweaks
-
-- **Different model:** set `LLM_MODEL=ollama/qwen2.5` in `.env`.
-- **Better embeddings:** `EMBEDDING_MODEL=BAAI/bge-small-en-v1.5`.
-- **Self-hosted Firecrawl:** run the [open-source Firecrawl](https://github.com/mendableai/firecrawl) locally and set `FIRECRAWL_API_URL=http://localhost:3002`.
-- **Faster runs:** lower `max_iter` in `src/agents/crew.py` or use a smaller model (`ollama/llama3.2:3b`).
+- If Ollama is unreachable, deterministic analytics, charts and reports still complete; LLM-written sections are marked unavailable.
+- Web scraping cascades: Firecrawl (if keyed) → Crawl4AI → plain httpx+BeautifulSoup.
+- PDF export uses ReportLab (pure Python); swap in WeasyPrint if you prefer CSS-driven PDFs and have its system deps.
